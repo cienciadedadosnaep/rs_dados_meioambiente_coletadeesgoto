@@ -3,7 +3,7 @@
 
 library(tidyverse)
 library(magrittr)
-#library(dplyr)
+library(dplyr)
 library(readr)
 library(rjson)
 library(RJSONIO)
@@ -43,69 +43,71 @@ library(RJSONIO)
 # #dbHasCompleted(rs)
 # #dbClearResult(rs)
 
-library(readxl)
-dados <- read_excel("data/coleta_esgoto.xlsx")
+library(readr)
+ssa_painel_saneamento_brasil <- read_delim("data/ssa_painel_saneamento_brasil.csv", na = c("-", "NA"), 
+                                           delim = ";", escape_double = FALSE, trim_ws = TRUE)
+names(ssa_painel_saneamento_brasil)
 
-nomes <- names(dados)
-##  Perguntas e titulos 
+# Selecao de parte do banco que responde as perguntas da planilha de povoamento
 
 
 
-T_ST_P_No_TRAMOB <- read_csv("data/TEMA_SUBTEMA_P_No - TRANSPORTEMOBILIDADE.csv")
+dados <- ssa_painel_saneamento_brasil %>% 
+  select(Indicador,
+         `População total que mora em domicílios com acesso ao serviço de coleta de esgoto (pessoas) (SNIS)`,
+         `População total que mora em domicílios sem acesso ao serviço de coleta de esgoto (pessoas) (SNIS)`,
+         `Volume de esgoto coletado (mil m³) (SNIS)`,                                                                             
+         `Volume de esgoto tratado (mil m³) (SNIS)`) 
 
-#dados <- dados %>% add_column(valor = 'valor', .after = 'trimestre')
+names(dados) = c("ano",
+                 "q1_pop_c_coleta_esgoto","q2_pop_s_coleta_esgoto","q3_vol_esgoto_col","q4_vol_esgoto_trat")
 
-#dados %<>% gather(key = classe,
-#                  value = valor,-trimestre,-Homens) 
 
+dados %<>% gather(key = classe,
+                  value = consumo,-ano) 
+dados %<>% mutate(dados, `consumo` = `consumo`/1000000)
+dados <- subset(dados, classe == "q1_pop_c_coleta_esgoto")
 
 #dados %<>% select(-id)
 # Temas Subtemas Perguntas
 
+##  Perguntas e titulos 
+T_ST_P_No_MEIOAMBIENTE <- read_csv("data/TEMA_SUBTEMA_P_No - MEIOAMBIENTE.csv")
 
 
 ## Arquivo de saida 
 
-SAIDA_POVOAMENTO <- T_ST_P_No_TRAMOB %>% 
+SAIDA_POVOAMENTO <- T_ST_P_No_MEIOAMBIENTE %>% 
   select(TEMA,SUBTEMA,PERGUNTA,NOME_ARQUIVO_JS)
 SAIDA_POVOAMENTO <- as.data.frame(SAIDA_POVOAMENTO)
 
-#classes <- NULL
-#classes <- levels(as.factor(dados$classe))
+classes <- NULL
+classes <- levels(as.factor(dados$classe))
 
 # Cores secundarias paleta pantone -
-corsec_recossa_azul <- c('#a094e1','#dc6f6c','#62acd1','#8bc6d2',
+corsec_recossa_azul <- c('#175676','#62acd1','#8bc6d2','#20cfef',
                          '#d62839','#20cfef','#fe4641','#175676')
-# Cor 1 - Roxo; Cor 2, 5, 7 - Vermelho; Cor 3, 4, 6, 8 - Azul
-
-simbolo_linhas <- c('emptyCircle','emptyTriangle','emptySquare',
-                    'emptyDiamond','emptyRoundRect')
-
 #for ( i in 1:length(classes)) {
 
 objeto_0 <- dados %>%
-  #filter(classe %in% c(classes[1])) %>%
-  select(`Ano`,`Acidentes com mortos`) %>% #filter(ano<2019) %>%
-  #arrange(trimestre) %>%
-  mutate(Ano = as.character(Ano)) %>% list()               
+  #  filter(classe %in% c(classes[i])) %>%
+  select(ano,consumo) %>% filter(ano<2018) %>%
+  arrange(ano) %>%
+  mutate(ano = as.character(ano)) %>% list()               
 
 exportJson0 <- toJSON(objeto_0)
 
+titulo<-T_ST_P_No_MEIOAMBIENTE$TITULO[1]
+subtexto<-"Fonte: Painel do Saneamento"
+link <- T_ST_P_No_MEIOAMBIENTE$LINK[1]
 
-titulo<-T_ST_P_No_TRAMOB$TITULO[2]
-subtexto<-"Fonte: TRANSALVADOR"
-link <- T_ST_P_No_TRAMOB$LINK[2]
-
-data_axis <- paste('["',gsub(' ','","',
-                             paste(paste(as.vector(objeto_0[[1]]$`Ano`)),
-                                   collapse = ' ')),'"]',sep = '')
-
+data_axis <- paste('[',gsub(' ',',',
+                            paste(paste(as.vector(objeto_0[[1]]$ano)),
+                                  collapse = ' ')),']',sep = '')
 
 data_serie <- paste('[',gsub(' ',',',
-                             paste(paste(as.vector(objeto_0[[1]]$`Acidentes com mortos`)),
+                             paste(paste(as.vector(objeto_0[[1]]$consumo)),
                                    collapse = ' ')),']',sep = '')
-
-#Colocar o nome da coluna depois de "objeto_0[[1]]$"
 
 texto<-paste('{"title":{"text":"',titulo,
              '","subtext":"',subtexto,
@@ -113,23 +115,22 @@ texto<-paste('{"title":{"text":"',titulo,
              '"tooltip":{"trigger":"axis"},',
              '"toolbox":{"left":"center","orient":"horizontal","itemSize":20,"top":20,"show":true,',
              '"feature":{"dataZoom":{"yAxisIndex":"none"},',
-             '"dataView":{"readOnly":false},',
-             '"restore":{},"saveAsImage":{}}},"legend":{"show":true,"top":"bottom"},"xAxis":{"type":"category",',
+             '"dataView":{"readOnly":false},"magicType":{"type":["line","bar"]},',
+             '"restore":{},"saveAsImage":{}}},"xAxis":{"type":"category",',
              '"data":',data_axis,'},',
-             '"yAxis":{"type":"value","axisLabel":{"formatter":"{value}"}},',
-             '"series":[{"name":"',nomes[3],'","data":',data_serie,',',
+             '"yAxis":{"type":"value","axisLabel":{"formatter":"{value} M"}},',
+             '"series":[{"data":',data_serie,',',
              '"type":"bar","color":"',corsec_recossa_azul[1],'","showBackground":true,',
-             '"backgroundStyle":{"color":"rgba(180, 180, 180, 0.2)"},"symbol":"',simbolo_linhas[4],
-             '","symbolSize":10,"itemStyle":{"borderRadius":10,"borderColor":"',corsec_recossa_azul[1],'","borderWidth":2}}',
-             ']}',sep='')
+             '"backgroundStyle":{"color":"rgba(180, 180, 180, 0.2)"},',
+             '"itemStyle":{"borderRadius":10,"borderColor":"',corsec_recossa_azul[1],'","borderWidth":2}}]}',sep='')
 
-#SAIDA_POVOAMENTO$CODIGO[i] <- texto   
+#  SAIDA_POVOAMENTO$CODIGO[i] <- texto   
 texto<-noquote(texto)
 
 
-write(exportJson0,file = paste('data/',gsub('.csv','',T_ST_P_No_TRAMOB$NOME_ARQUIVO_JS[2]),
+write(exportJson0,file = paste('data/',gsub('.csv','',T_ST_P_No_MEIOAMBIENTE$NOME_ARQUIVO_JS[1]),
                                '.json',sep =''))
-write(texto,file = paste('data/',T_ST_P_No_TRAMOB$NOME_ARQUIVO_JS[2],
+write(texto,file = paste('data/',T_ST_P_No_MEIOAMBIENTE$NOME_ARQUIVO_JS[1],
                          sep =''))
 
 #}
