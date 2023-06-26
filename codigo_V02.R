@@ -65,7 +65,7 @@ names(dados) = c("ano",
 
 dados %<>% gather(key = classe,
                   value = consumo,-ano) 
-dados %<>% mutate(dados, `consumo` = `consumo`/1000)
+dados %<>% mutate(dados, `consumo` = round(`consumo`/1000))
 dados <- subset(dados, classe == "q3_vol_esgoto_col")
 
 #dados %<>% select(-id)
@@ -112,7 +112,7 @@ data_serie <- paste('[',gsub(' ',',',
 texto<-paste('{"title":{"text":"',titulo,
              '","subtext":"',subtexto,
              '","sublink":"',link,'"},',
-             '"tooltip":{"trigger":"axis"},',
+             '"tooltip":{"trigger":"item","responsive":"true","position":"top","formatter":"{c0} mil"},',
              '"toolbox":{"left":"center","orient":"horizontal","itemSize":20,"top":20,"show":true,',
              '"feature":{"dataZoom":{"yAxisIndex":"none"},',
              '"dataView":{"readOnly":false},"magicType":{"type":["line","bar"]},',
